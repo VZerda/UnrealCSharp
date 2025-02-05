@@ -4,7 +4,7 @@
 #include "FDelegateBaseHelper.h"
 #include "MulticastDelegateHandler.h"
 
-class FMulticastDelegateHelper final : public FDelegateBaseHelper
+class UNREALCSHARP_API FMulticastDelegateHelper final : public FDelegateBaseHelper
 {
 public:
 	FMulticastDelegateHelper();

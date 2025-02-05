@@ -3,6 +3,11 @@
 #include "FDynamicDependencyGraph.h"
 #include "mono/metadata/details/reflection-types.h"
 
+struct UNREALCSHARPCORE_API FDynamicGeneratorCoreExports {
+	// OutMonoMethodName's memory is managed by Mono, DO NOT keep this pointer for long time.
+	static bool CreateUFunctionForMonoMethod(UClass* InClass, MonoMethod* InMethod, UFunction*& OutFunction, const char*& OutMonoMethodName);
+};
+
 class FDynamicGeneratorCore
 {
 public:

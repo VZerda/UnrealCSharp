@@ -149,6 +149,9 @@ public:
 	UFunction* GetCallBack() const;
 
 private:
+
+	void UpdateDelegateDescriptorWithMonoMethod(MonoMethod* InMethod, UClass* InClass);
+
 	bool bNeedFree;
 
 	FScriptDelegate* ScriptDelegate;
@@ -156,4 +159,7 @@ private:
 	FCSharpDelegateDescriptor* DelegateDescriptor;
 
 	FDelegateWrapper DelegateWrapper;
+
+	UPROPERTY()
+	UFunction* FunctionInfo;
 };

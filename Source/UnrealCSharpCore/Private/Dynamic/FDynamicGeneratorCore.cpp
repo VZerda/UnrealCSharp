@@ -1293,15 +1293,6 @@ void FDynamicGeneratorCore::GeneratorProperty(MonoClass* InMonoClass, UField* In
 void FDynamicGeneratorCore::GeneratorFunction(MonoClass* InMonoClass, UClass* InClass,
                                               const TFunction<void(const UFunction* InFunction)>& InGenerator)
 {
-	struct FParamDescriptor
-	{
-		MonoReflectionType* ReflectionType;
-
-		FName Name;
-
-		bool bIsRef;
-	};
-
 	if (InMonoClass == nullptr || InClass == nullptr)
 	{
 		return;
@@ -1318,75 +1309,9 @@ void FDynamicGeneratorCore::GeneratorFunction(MonoClass* InMonoClass, UClass* In
 		{
 			if (!!FMonoDomain::Custom_Attrs_Has_Attr(Attrs, AttributeMonoClass))
 			{
-				const auto MethodName = FMonoDomain::Method_Get_Name(Method);
-
-				const auto Signature = FMonoDomain::Method_Signature(Method);
-
-				void* ParamIterator = nullptr;
-
-				const auto ParamCount = FMonoDomain::Signature_Get_Param_Count(Signature);
-
-				const auto ParamNames = static_cast<const char**>(FMemory_Alloca(ParamCount * sizeof(const char*)));
-
-				FMonoDomain::Method_Get_Param_Names(Method, ParamNames);
-
-				auto ParamIndex = 0;
-
-				TArray<FParamDescriptor> ParamDescriptors;
-
-				while (const auto Param = FMonoDomain::Signature_Get_Params(Signature, &ParamIterator))
-				{
-					ParamDescriptors.Add({
-						FMonoDomain::Type_Get_Object(Param),
-						ParamNames[ParamIndex++],
-						!!FMonoDomain::Type_Is_ByRef(Param)
-					});
-				}
-
-				auto Function = NewObject<UFunction>(InClass, MethodName, RF_Public | RF_Transient);
-
-				if (!!!FMonoDomain::Signature_Is_Instance(Signature))
-				{
-					Function->FunctionFlags |= FUNC_Static;
-				}
-
-				Function->MinAlignment = 1;
-
-				if (const auto ReturnParamType = FMonoDomain::Signature_Get_Return_Type(Signature))
-				{
-					const auto ReturnParamReflectionType = FMonoDomain::Type_Get_Object(ReturnParamType);
-
-					if (const auto Property = FTypeBridge::Factory<true>(ReturnParamReflectionType, Function, "",
-					                                                     RF_Public | RF_Transient))
-					{
-						Property->SetPropertyFlags(CPF_Parm | CPF_OutParm | CPF_ReturnParm);
-
-						Function->AddCppProperty(Property);
-
-						Function->FunctionFlags |= FUNC_HasOutParms;
-					}
-				}
-
-				for (auto Index = ParamDescriptors.Num() - 1; Index >= 0; --Index)
-				{
-					const auto Property = FTypeBridge::Factory<true>(ParamDescriptors[Index].ReflectionType,
-					                                                 Function,
-					                                                 ParamDescriptors[Index].Name,
-					                                                 RF_Public | RF_Transient);
-
-					Property->SetPropertyFlags(CPF_Parm);
-
-					if (ParamDescriptors[Index].bIsRef)
-					{
-						Property->SetPropertyFlags(CPF_OutParm | CPF_ReferenceParm);
-					}
-
-					Function->AddCppProperty(Property);
-				}
-
-				Function->Bind();
-
-				Function->StaticLink(true);
+				UFunction* Function = nullptr;
+				const char* MethodName = nullptr;
+				FDynamicGeneratorCoreExports::CreateUFunctionForMonoMethod(InClass, Method, Function, MethodName);
 
 				Function->Next = InClass->Children;
 
@@ -1428,4 +1353,95 @@ MonoClass* FDynamicGeneratorCore::IInterfaceToUInterface(MonoClass* InMonoClass)
 	                                    ),
 	                                                    *ClassName.RightChop(1)
 	                                    ));
+}
+
+bool FDynamicGeneratorCoreExports::CreateUFunctionForMonoMethod(UClass* InClass, MonoMethod* InMethod, UFunction*& OutFunction, const char*& OutMonoMethodName)
+{
+	if (InMethod == nullptr)
+	{
+		return false;
+	}
+
+	struct FParamDescriptor
+	{
+		MonoReflectionType* ReflectionType;
+
+		FName Name;
+
+		bool bIsRef;
+	};
+
+	const auto MethodName = FMonoDomain::Method_Get_Name(InMethod);
+
+	const auto Signature = FMonoDomain::Method_Signature(InMethod);
+
+	void* ParamIterator = nullptr;
+
+	const auto ParamCount = FMonoDomain::Signature_Get_Param_Count(Signature);
+
+	const auto ParamNames = static_cast<const char**>(FMemory_Alloca(ParamCount * sizeof(const char*)));
+
+	FMonoDomain::Method_Get_Param_Names(InMethod, ParamNames);
+
+	auto ParamIndex = 0;
+
+	TArray<FParamDescriptor> ParamDescriptors;
+
+	while (const auto Param = FMonoDomain::Signature_Get_Params(Signature, &ParamIterator))
+	{
+		ParamDescriptors.Add({
+			FMonoDomain::Type_Get_Object(Param),
+			ParamNames[ParamIndex++],
+			!!FMonoDomain::Type_Is_ByRef(Param)
+			});
+	}
+
+	auto Function = NewObject<UFunction>(InClass, MethodName, RF_Public | RF_Transient);
+
+	if (!!!FMonoDomain::Signature_Is_Instance(Signature))
+	{
+		Function->FunctionFlags |= FUNC_Static;
+	}
+
+	Function->MinAlignment = 1;
+
+	if (const auto ReturnParamType = FMonoDomain::Signature_Get_Return_Type(Signature))
+	{
+		const auto ReturnParamReflectionType = FMonoDomain::Type_Get_Object(ReturnParamType);
+
+		if (const auto Property = FTypeBridge::Factory<true>(ReturnParamReflectionType, Function, "",
+			RF_Public | RF_Transient))
+		{
+			Property->SetPropertyFlags(CPF_Parm | CPF_OutParm | CPF_ReturnParm);
+
+			Function->AddCppProperty(Property);
+
+			Function->FunctionFlags |= FUNC_HasOutParms;
+		}
+	}
+
+	for (auto Index = ParamDescriptors.Num() - 1; Index >= 0; --Index)
+	{
+		const auto Property = FTypeBridge::Factory<true>(ParamDescriptors[Index].ReflectionType,
+			Function,
+			ParamDescriptors[Index].Name,
+			RF_Public | RF_Transient);
+
+		Property->SetPropertyFlags(CPF_Parm);
+
+		if (ParamDescriptors[Index].bIsRef)
+		{
+			Property->SetPropertyFlags(CPF_OutParm | CPF_ReferenceParm);
+		}
+
+		Function->AddCppProperty(Property);
+	}
+
+	Function->Bind();
+
+	Function->StaticLink(true);
+
+	OutFunction = Function;
+	OutMonoMethodName = MethodName;
+	return true;
 }

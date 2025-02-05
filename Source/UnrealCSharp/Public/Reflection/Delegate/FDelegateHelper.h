@@ -4,7 +4,7 @@
 #include "FDelegateBaseHelper.h"
 #include "DelegateHandler.h"
 
-class FDelegateHelper final : public FDelegateBaseHelper
+class UNREALCSHARP_API FDelegateHelper final : public FDelegateBaseHelper
 {
 public:
 	typedef UDelegateHandler UHandlerType;

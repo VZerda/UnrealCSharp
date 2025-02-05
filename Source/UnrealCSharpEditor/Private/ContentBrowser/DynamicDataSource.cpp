@@ -58,8 +58,8 @@ void UDynamicDataSource::CompileFilter(const FName InPath, const FContentBrowser
 #else
 	const FPathPermissionList* ClassPermissionList = nullptr;
 #endif
-
-	if (const auto DataClassFilter = InFilter.ExtraFilters.FindFilter<FContentBrowserDataClassFilter>())
+	const auto DataClassFilter = InFilter.ExtraFilters.FindFilter<FContentBrowserDataClassFilter>();
+	if (DataClassFilter)
 	{
 		if (DataClassFilter->ClassPermissionList)
 		{
@@ -245,6 +245,15 @@ void UDynamicDataSource::CompileFilter(const FName InPath, const FContentBrowser
 		{
 			Folders.Add(MatchingFolder);
 		}
+	}
+
+	// If we are filtering all classes, then we can bail now as we won't return any file items
+	if ((DataClassFilter && (DataClassFilter->ClassNamesToInclude.Num() > 0 && !DataClassFilter->ClassNamesToInclude.Contains(TEXT("/Script/CoreUObject.Class")))) ||
+		(DataClassFilter && (DataClassFilter->ClassNamesToExclude.Num() > 0 && DataClassFilter->ClassNamesToExclude.Contains(TEXT("/Script/CoreUObject.Class")))) ||
+		(ClassPermissionList && (ClassPermissionList->IsDenyListAll() || !ClassPermissionList->PassesFilter(TEXT("/Script/CoreUObject.Class"))))
+		)
+	{
+		return;
 	}
 
 	if (bIncludeFiles)

@@ -1,5 +1,6 @@
 ﻿#include "Reflection/Delegate/DelegateHandler.h"
 #include "Macro/FunctionMacro.h"
+#include "Dynamic/FDynamicGeneratorCore.h"
 
 void UDelegateHandler::ProcessEvent(UFunction* Function, void* Parms)
 {
@@ -27,6 +28,8 @@ void UDelegateHandler::Initialize(FScriptDelegate* InScriptDelegate, UFunction* 
 	ScriptDelegate = InScriptDelegate != nullptr ? InScriptDelegate : new FScriptDelegate();
 
 	DelegateDescriptor = new FCSharpDelegateDescriptor(InSignatureFunction);
+
+	FunctionInfo = InSignatureFunction;
 }
 
 void UDelegateHandler::Deinitialize()
@@ -49,12 +52,15 @@ void UDelegateHandler::Deinitialize()
 
 		DelegateDescriptor = nullptr;
 	}
+
+	FunctionInfo = nullptr;
 }
 
 void UDelegateHandler::Bind(UObject* InObject, MonoMethod* InMonoMethod)
 {
 	if (ScriptDelegate != nullptr)
 	{
+		UpdateDelegateDescriptorWithMonoMethod(InMonoMethod, (!!InObject)?InObject->GetClass(): UDelegateHandler::StaticClass());
 		if (!ScriptDelegate->IsBound())
 		{
 			ScriptDelegate->BindUFunction(this, *FUNCTION_CSHARP_CALLBACK);
@@ -98,4 +104,22 @@ FName UDelegateHandler::GetFunctionName() const
 UFunction* UDelegateHandler::GetCallBack() const
 {
 	return FindFunction(*FUNCTION_CSHARP_CALLBACK);
+}
+
+void UDelegateHandler::UpdateDelegateDescriptorWithMonoMethod(MonoMethod* InMethod, UClass* InClass)
+{
+	FunctionInfo = nullptr;
+	const char* MethodName = nullptr;
+	if (!FDynamicGeneratorCoreExports::CreateUFunctionForMonoMethod(InClass, InMethod, FunctionInfo, MethodName))
+	{
+		return;
+	}
+
+
+	if (DelegateDescriptor != nullptr)
+	{
+		delete DelegateDescriptor;
+	}
+
+	DelegateDescriptor = new FCSharpDelegateDescriptor(FunctionInfo);
 }
